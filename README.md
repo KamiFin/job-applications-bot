@@ -82,7 +82,7 @@ job-bot parse my_resume.pdf
 Copy `config/example_config.yaml` to `config.yaml` and edit:
 
 ```yaml
-cv_path: "my_resume.pdf"        # Path to your resume (PDF/DOCX/TXT)
+cv_path: "resumes/my_resume.pdf" # Path to your resume (PDF/DOCX/TXT)
 headless: false                  # Set true for cloud/server environments
 max_applications: 10             # Limit per platform per run
 
