@@ -8,7 +8,7 @@ import logging
 from playwright.async_api import Page
 
 from job_bot.connectors.base import BaseConnector
-from job_bot.models import ApplicationResult, ApplicationStatus, JobListing
+from job_bot.models import ApplicationStatus, JobListing
 
 logger = logging.getLogger(__name__)
 
@@ -73,60 +73,25 @@ class IndeedConnector(BaseConnector):
         await self.browser.navigate(page, job.url)
         await asyncio.sleep(2)
 
-        try:
-            # Click apply button
-            apply_btn = await page.query_selector(
-                '#indeedApplyButton, button[id*="apply"], .jobsearch-IndeedApplyButton'
-            )
-            if not apply_btn:
-                return ApplicationResult(
-                    job=job,
-                    status=ApplicationStatus.SKIPPED,
-                    message="No apply button found - may require external application",
-                )
-
-            await apply_btn.click()
-            await asyncio.sleep(3)
-
-            # Handle Indeed's multi-step application
-            max_steps = 8
-            for step in range(max_steps):
-                result = await self.form_filler.fill_form(page, self.cv_file_path)
-                logger.info("Step %d: filled %d fields", step + 1, result["filled"])
-
-                # Check for submit
-                submit_btn = await page.query_selector(
-                    'button[type="submit"]:has-text("Submit"), '
-                    'button:has-text("Submit your application")'
-                )
-                if submit_btn:
-                    await submit_btn.click()
-                    await asyncio.sleep(2)
-                    return ApplicationResult(
-                        job=job,
-                        status=ApplicationStatus.SUBMITTED,
-                        message="Successfully submitted on Indeed",
-                    )
-
-                # Continue to next step
-                continue_btn = await page.query_selector(
-                    'button:has-text("Continue"), button:has-text("Next")'
-                )
-                if continue_btn:
-                    await continue_btn.click()
-                    await asyncio.sleep(2)
-                else:
-                    break
-
-            return ApplicationResult(
-                job=job,
-                status=ApplicationStatus.FAILED,
-                message="Could not complete application form",
+        apply_btn = await page.query_selector(
+            '#indeedApplyButton, button[id*="apply"], .jobsearch-IndeedApplyButton'
+        )
+        if not apply_btn:
+            return self._result(
+                job, ApplicationStatus.SKIPPED, "No apply button found - may require external application"
             )
 
-        except Exception as e:
-            return ApplicationResult(
-                job=job,
-                status=ApplicationStatus.FAILED,
-                message=str(e),
-            )
+        await apply_btn.click()
+        await asyncio.sleep(3)
+
+        return await self._walk_multistep_form(
+            page,
+            job,
+            submit_selector=(
+                'button[type="submit"]:has-text("Submit"), '
+                'button:has-text("Submit your application")'
+            ),
+            next_selector='button:has-text("Continue"), button:has-text("Next")',
+            max_steps=8,
+            success_message="Successfully submitted on Indeed",
+        )

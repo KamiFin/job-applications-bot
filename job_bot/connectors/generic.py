@@ -8,7 +8,7 @@ import logging
 from playwright.async_api import Page
 
 from job_bot.connectors.base import BaseConnector
-from job_bot.models import ApplicationResult, ApplicationStatus, JobListing
+from job_bot.models import ApplicationStatus, JobListing
 
 logger = logging.getLogger(__name__)
 
@@ -46,11 +46,7 @@ class GenericConnector(BaseConnector):
             )
 
             if result["filled"] == 0:
-                return ApplicationResult(
-                    job=job,
-                    status=ApplicationStatus.SKIPPED,
-                    message="No fillable fields found on page",
-                )
+                return self._result(job, ApplicationStatus.SKIPPED, "No fillable fields found on page")
 
             # Look for a submit button
             submit_btn = await page.query_selector(
@@ -62,29 +58,22 @@ class GenericConnector(BaseConnector):
             )
 
             if submit_btn:
-                # Don't auto-submit by default - wait for user confirmation
                 logger.info(
                     "Form filled for %s. Found submit button but waiting for confirmation.",
                     job.url,
                 )
-                return ApplicationResult(
-                    job=job,
-                    status=ApplicationStatus.IN_PROGRESS,
-                    message=f"Form filled ({result['filled']} fields). Review before submitting.",
+                return self._result(
+                    job, ApplicationStatus.IN_PROGRESS,
+                    f"Form filled ({result['filled']} fields). Review before submitting.",
                 )
 
-            return ApplicationResult(
-                job=job,
-                status=ApplicationStatus.IN_PROGRESS,
-                message=f"Form filled ({result['filled']} fields). No submit button found.",
+            return self._result(
+                job, ApplicationStatus.IN_PROGRESS,
+                f"Form filled ({result['filled']} fields). No submit button found.",
             )
 
         except Exception as e:
-            return ApplicationResult(
-                job=job,
-                status=ApplicationStatus.FAILED,
-                message=str(e),
-            )
+            return self._result(job, ApplicationStatus.FAILED, str(e))
 
     async def apply_to_url(self, page: Page, url: str) -> ApplicationResult:
         """Convenience method to apply directly to a URL."""

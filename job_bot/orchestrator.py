@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
 
 from job_bot.browser import BrowserEngine
-from job_bot.connectors.base import BaseConnector
 from job_bot.connectors.generic import GenericConnector
 from job_bot.connectors.indeed import IndeedConnector
 from job_bot.connectors.linkedin import LinkedInConnector
@@ -67,31 +68,21 @@ class JobBot:
             connector = connector_cls(browser, self.cv, self.cv_file_path)
             page = await browser.new_page()
 
-            # Login if credentials provided
             if credentials:
                 logged_in = await connector.login(page, credentials)
                 if not logged_in:
                     logger.error("Failed to log in to %s", platform)
                     return results
 
-            # Search for jobs
             jobs = await connector.search_jobs(page, query, location)
             logger.info("Found %d jobs on %s", len(jobs), platform)
 
-            # Apply to jobs up to the limit
-            for i, job in enumerate(jobs[: self.max_applications]):
-                logger.info(
-                    "[%d/%d] Applying to: %s at %s",
-                    i + 1,
-                    min(len(jobs), self.max_applications),
-                    job.title,
-                    job.company,
-                )
+            target = jobs[: self.max_applications]
+            for i, job in enumerate(target):
+                logger.info("[%d/%d] Applying to: %s at %s", i + 1, len(target), job.title, job.company)
                 result = await connector._safe_apply(page, job)
                 results.append(result)
                 self.results.append(result)
-
-                # Small delay between applications
                 await asyncio.sleep(2)
 
         return results
@@ -118,25 +109,20 @@ class JobBot:
 
     def print_summary(self) -> None:
         """Print a summary of all application results."""
-        submitted = sum(1 for r in self.results if r.status == ApplicationStatus.SUBMITTED)
-        failed = sum(1 for r in self.results if r.status == ApplicationStatus.FAILED)
-        skipped = sum(1 for r in self.results if r.status == ApplicationStatus.SKIPPED)
-        in_progress = sum(1 for r in self.results if r.status == ApplicationStatus.IN_PROGRESS)
+        counts = Counter(r.status for r in self.results)
 
         logger.info("=" * 50)
         logger.info("APPLICATION SUMMARY")
         logger.info("=" * 50)
         logger.info("Total:       %d", len(self.results))
-        logger.info("Submitted:   %d", submitted)
-        logger.info("In Progress: %d", in_progress)
-        logger.info("Skipped:     %d", skipped)
-        logger.info("Failed:      %d", failed)
+        logger.info("Submitted:   %d", counts[ApplicationStatus.SUBMITTED])
+        logger.info("In Progress: %d", counts[ApplicationStatus.IN_PROGRESS])
+        logger.info("Skipped:     %d", counts[ApplicationStatus.SKIPPED])
+        logger.info("Failed:      %d", counts[ApplicationStatus.FAILED])
         logger.info("=" * 50)
 
     def save_results(self, output_path: str = "results.json") -> None:
         """Save application results to a JSON file."""
-        import json
-
         data = []
         for r in self.results:
             data.append({

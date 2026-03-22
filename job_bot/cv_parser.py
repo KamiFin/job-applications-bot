@@ -7,6 +7,28 @@ from pathlib import Path
 
 from job_bot.models import CVData, Education, PersonalInfo, WorkExperience
 
+_EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+_PHONE_RE = re.compile(r"[\+]?[\d\s\-\(\)]{7,15}")
+_LINKEDIN_RE = re.compile(r"(?:https?://)?(?:www\.)?linkedin\.com/in/[\w-]+")
+_GITHUB_RE = re.compile(r"(?:https?://)?(?:www\.)?github\.com/[\w-]+")
+_SKILLS_RE = re.compile(
+    r"(?:skills|technical skills|technologies|competencies)[:\s]*\n(.*?)(?:\n\n|\n[A-Z])",
+    re.IGNORECASE | re.DOTALL,
+)
+_EXPERIENCE_RE = re.compile(
+    r"(?:experience|work history|employment)[:\s]*\n(.*?)(?:\n(?:education|skills|certifications|projects)|$)",
+    re.IGNORECASE | re.DOTALL,
+)
+_EDUCATION_RE = re.compile(
+    r"(?:education)[:\s]*\n(.*?)(?:\n(?:experience|skills|certifications|projects)|$)",
+    re.IGNORECASE | re.DOTALL,
+)
+_SUMMARY_RE = re.compile(
+    r"(?:summary|profile|about|objective)[:\s]*\n(.*?)(?:\n\n|\n[A-Z])",
+    re.IGNORECASE | re.DOTALL,
+)
+_DATE_RANGE_RE = re.compile(r"(\w+\s+\d{4})\s*[-–]\s*(\w+\s+\d{4}|present)", re.IGNORECASE)
+
 
 def parse_cv(file_path: str) -> CVData:
     """Parse a CV file (PDF or DOCX) into structured data."""
@@ -66,30 +88,25 @@ def _extract_personal_info(lines: list[str], text: str) -> PersonalInfo:
     """Extract personal information from CV text."""
     info = PersonalInfo()
 
-    # Name is typically the first non-empty line
     if lines:
         name_parts = lines[0].split()
         if 1 < len(name_parts) <= 4:
             info.first_name = name_parts[0]
             info.last_name = " ".join(name_parts[1:])
 
-    # Email
-    email_match = re.search(r"[\w.+-]+@[\w-]+\.[\w.-]+", text)
+    email_match = _EMAIL_RE.search(text)
     if email_match:
         info.email = email_match.group()
 
-    # Phone
-    phone_match = re.search(r"[\+]?[\d\s\-\(\)]{7,15}", text)
+    phone_match = _PHONE_RE.search(text)
     if phone_match:
         info.phone = phone_match.group().strip()
 
-    # LinkedIn
-    linkedin_match = re.search(r"(?:https?://)?(?:www\.)?linkedin\.com/in/[\w-]+", text)
+    linkedin_match = _LINKEDIN_RE.search(text)
     if linkedin_match:
         info.linkedin_url = linkedin_match.group()
 
-    # GitHub
-    github_match = re.search(r"(?:https?://)?(?:www\.)?github\.com/[\w-]+", text)
+    github_match = _GITHUB_RE.search(text)
     if github_match:
         info.github_url = github_match.group()
 
@@ -98,32 +115,22 @@ def _extract_personal_info(lines: list[str], text: str) -> PersonalInfo:
 
 def _extract_skills(text: str) -> list[str]:
     """Extract skills from the CV text."""
-    skills_section = re.search(
-        r"(?:skills|technical skills|technologies|competencies)[:\s]*\n(.*?)(?:\n\n|\n[A-Z])",
-        text,
-        re.IGNORECASE | re.DOTALL,
-    )
+    skills_section = _SKILLS_RE.search(text)
     if not skills_section:
         return []
 
     skills_text = skills_section.group(1)
-    # Split by common delimiters
     raw_skills = re.split(r"[,;|•·\n]", skills_text)
     return [s.strip().strip("-").strip() for s in raw_skills if s.strip() and len(s.strip()) < 50]
 
 
 def _extract_work_experience(text: str) -> list[WorkExperience]:
     """Extract work experience entries."""
-    section = re.search(
-        r"(?:experience|work history|employment)[:\s]*\n(.*?)(?:\n(?:education|skills|certifications|projects)|$)",
-        text,
-        re.IGNORECASE | re.DOTALL,
-    )
+    section = _EXPERIENCE_RE.search(text)
     if not section:
         return []
 
     entries = []
-    # Split by date patterns that typically start new entries
     blocks = re.split(r"\n(?=\w.*(?:\d{4}|\bpresent\b))", section.group(1), flags=re.IGNORECASE)
 
     for block in blocks:
@@ -137,7 +144,7 @@ def _extract_work_experience(text: str) -> list[WorkExperience]:
             exp.company = block_lines[1]
         if len(block_lines) > 2:
             exp.description = "\n".join(block_lines[2:])
-        date_match = re.search(r"(\w+\s+\d{4})\s*[-–]\s*(\w+\s+\d{4}|present)", block, re.I)
+        date_match = _DATE_RANGE_RE.search(block)
         if date_match:
             exp.start_date = date_match.group(1)
             exp.end_date = date_match.group(2)
@@ -149,11 +156,7 @@ def _extract_work_experience(text: str) -> list[WorkExperience]:
 
 def _extract_education(text: str) -> list[Education]:
     """Extract education entries."""
-    section = re.search(
-        r"(?:education)[:\s]*\n(.*?)(?:\n(?:experience|skills|certifications|projects)|$)",
-        text,
-        re.IGNORECASE | re.DOTALL,
-    )
+    section = _EDUCATION_RE.search(text)
     if not section:
         return []
 
@@ -176,11 +179,7 @@ def _extract_education(text: str) -> list[Education]:
 
 def _extract_summary(text: str) -> str:
     """Extract professional summary."""
-    summary_match = re.search(
-        r"(?:summary|profile|about|objective)[:\s]*\n(.*?)(?:\n\n|\n[A-Z])",
-        text,
-        re.IGNORECASE | re.DOTALL,
-    )
+    summary_match = _SUMMARY_RE.search(text)
     if summary_match:
         return summary_match.group(1).strip()
     return ""

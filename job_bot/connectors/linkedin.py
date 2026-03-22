@@ -8,7 +8,7 @@ import logging
 from playwright.async_api import Page
 
 from job_bot.connectors.base import BaseConnector
-from job_bot.models import ApplicationResult, ApplicationStatus, JobListing
+from job_bot.models import ApplicationStatus, JobListing
 
 logger = logging.getLogger(__name__)
 
@@ -75,62 +75,23 @@ class LinkedInConnector(BaseConnector):
         await self.browser.navigate(page, job.url)
         await asyncio.sleep(2)
 
-        try:
-            # Click the Easy Apply button
-            easy_apply_btn = await page.query_selector(
-                'button.jobs-apply-button, button[aria-label*="Easy Apply"]'
-            )
-            if not easy_apply_btn:
-                return ApplicationResult(
-                    job=job,
-                    status=ApplicationStatus.SKIPPED,
-                    message="No Easy Apply button found",
-                )
+        easy_apply_btn = await page.query_selector(
+            'button.jobs-apply-button, button[aria-label*="Easy Apply"]'
+        )
+        if not easy_apply_btn:
+            return self._result(job, ApplicationStatus.SKIPPED, "No Easy Apply button found")
 
-            await easy_apply_btn.click()
-            await asyncio.sleep(2)
+        await easy_apply_btn.click()
+        await asyncio.sleep(2)
 
-            # Fill the multi-step application form
-            max_steps = 10
-            for step in range(max_steps):
-                # Fill any form fields on the current step
-                result = await self.form_filler.fill_form(page, self.cv_file_path)
-                logger.info("Step %d: filled %d fields", step + 1, result["filled"])
-
-                # Look for submit or next button
-                submit_btn = await page.query_selector(
-                    'button[aria-label*="Submit"], button[aria-label*="submit"]'
-                )
-                if submit_btn:
-                    await submit_btn.click()
-                    await asyncio.sleep(2)
-                    logger.info("Application submitted for %s at %s", job.title, job.company)
-                    return ApplicationResult(
-                        job=job,
-                        status=ApplicationStatus.SUBMITTED,
-                        message="Successfully submitted via Easy Apply",
-                    )
-
-                # Click next/review button to continue
-                next_btn = await page.query_selector(
-                    'button[aria-label*="Next"], button[aria-label*="Review"], '
-                    'button[aria-label*="Continue"]'
-                )
-                if next_btn:
-                    await next_btn.click()
-                    await asyncio.sleep(1)
-                else:
-                    break
-
-            return ApplicationResult(
-                job=job,
-                status=ApplicationStatus.FAILED,
-                message="Could not complete multi-step form",
-            )
-
-        except Exception as e:
-            return ApplicationResult(
-                job=job,
-                status=ApplicationStatus.FAILED,
-                message=str(e),
-            )
+        return await self._walk_multistep_form(
+            page,
+            job,
+            submit_selector='button[aria-label*="Submit"], button[aria-label*="submit"]',
+            next_selector=(
+                'button[aria-label*="Next"], button[aria-label*="Review"], '
+                'button[aria-label*="Continue"]'
+            ),
+            max_steps=10,
+            success_message="Successfully submitted via Easy Apply",
+        )

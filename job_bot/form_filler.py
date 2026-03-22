@@ -18,7 +18,7 @@ class FormField:
     """Represents a detected form field."""
 
     selector: str = ""
-    field_type: str = ""  # text, email, tel, file, select, textarea, checkbox, radio
+    field_type: str = ""
     label: str = ""
     name: str = ""
     placeholder: str = ""
@@ -26,9 +26,7 @@ class FormField:
     options: list[str] = field(default_factory=list)
 
 
-# Maps common field label/name patterns to CV data paths
 FIELD_MAPPING = {
-    # Personal info
     r"first.?name": "personal.first_name",
     r"last.?name|surname|family.?name": "personal.last_name",
     r"full.?name|your.?name|^name$": "full_name",
@@ -42,11 +40,10 @@ FIELD_MAPPING = {
     r"linkedin": "personal.linkedin_url",
     r"github": "personal.github_url",
     r"website|portfolio|url": "personal.website",
-    # Professional
     r"summary|cover.?letter|about|motivation|why.?apply": "summary",
     r"current.?title|job.?title|position": "current_title",
     r"current.?company|employer": "current_company",
-    r"salary|compensation|expected.?pay": "_skip",
+    r"salary|compensation|expected.?pay": None,
     r"years?.?(?:of)?.?experience": "years_experience",
 }
 
@@ -130,7 +127,7 @@ class FormFiller:
 
         for pattern, cv_path in FIELD_MAPPING.items():
             if re.search(pattern, search_text, re.IGNORECASE):
-                if cv_path == "_skip":
+                if cv_path is None:
                     return None
                 return self._resolve_cv_value(cv_path)
 
@@ -197,8 +194,6 @@ class FormFiller:
             try:
                 if form_field.field_type == "select":
                     await self._fill_select(page, form_field, value)
-                elif form_field.field_type in ("text", "email", "tel", "url", "number", "textarea"):
-                    await page.fill(form_field.selector, value)
                 else:
                     await page.fill(form_field.selector, value)
 
@@ -234,6 +229,5 @@ class FormFiller:
         if best_match:
             await page.select_option(form_field.selector, best_match)
         else:
-            # Try selecting by the first non-empty option as fallback
-            if form_field.options:
+                if form_field.options:
                 await page.select_option(form_field.selector, form_field.options[0])

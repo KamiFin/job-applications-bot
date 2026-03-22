@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
 
+from job_bot.models import ApplicationStatus
 from job_bot.orchestrator import JobBot
 
 console = Console()
@@ -126,11 +127,14 @@ def search(
         console.print("[red]No platforms enabled. Edit config.yaml to enable platforms.[/red]")
         return
 
-    for plat in platforms_to_run:
-        console.print(f"\n[bold blue]Running on {plat}...[/bold blue]")
-        creds = cfg.get("platforms", {}).get(plat, {}).get("credentials")
-        results = asyncio.run(bot.run_platform(plat, search_query, search_location, creds))
-        _print_results_table(results)
+    async def _run_all_platforms():
+        for plat in platforms_to_run:
+            console.print(f"\n[bold blue]Running on {plat}...[/bold blue]")
+            creds = cfg.get("platforms", {}).get(plat, {}).get("credentials")
+            results = await bot.run_platform(plat, search_query, search_location, creds)
+            _print_results_table(results)
+
+    asyncio.run(_run_all_platforms())
 
     bot.save_results()
     bot.print_summary()
@@ -194,15 +198,15 @@ def _print_results_table(results: list) -> None:
     table.add_column("Message")
 
     status_colors = {
-        "submitted": "green",
-        "in_progress": "yellow",
-        "skipped": "dim",
-        "failed": "red",
-        "pending": "blue",
+        ApplicationStatus.SUBMITTED: "green",
+        ApplicationStatus.IN_PROGRESS: "yellow",
+        ApplicationStatus.SKIPPED: "dim",
+        ApplicationStatus.FAILED: "red",
+        ApplicationStatus.PENDING: "blue",
     }
 
     for r in results:
-        color = status_colors.get(r.status.value, "white")
+        color = status_colors.get(r.status, "white")
         table.add_row(
             r.job.title or "N/A",
             r.job.company or "N/A",
