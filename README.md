@@ -37,10 +37,8 @@ Since the bot requires a server environment to run Playwright, use one of these 
 **GitHub Codespaces (recommended)**
 1. Go to this repo on GitHub
 2. Click **Code > Codespaces > Create codespace**
-3. Run in the terminal:
+3. Dependencies install automatically via `.devcontainer`. Once ready, run:
    ```bash
-   pip install -e .
-   playwright install chromium --with-deps
    job-bot init
    # Edit config.yaml, then:
    job-bot search -q "developer" -l "Remote"
