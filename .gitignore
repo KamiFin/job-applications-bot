@@ -21,6 +21,10 @@ env/
 # Config with credentials
 config.yaml
 
+# Resumes (keep private)
+resumes/*
+!resumes/.gitkeep
+
 # Results and screenshots
 results.json
 screenshots/

@@ -37,10 +37,8 @@ Since the bot requires a server environment to run Playwright, use one of these 
 **GitHub Codespaces (recommended)**
 1. Go to this repo on GitHub
 2. Click **Code > Codespaces > Create codespace**
-3. Run in the terminal:
+3. Dependencies install automatically via `.devcontainer`. Once ready, run:
    ```bash
-   pip install -e .
-   playwright install chromium --with-deps
    job-bot init
    # Edit config.yaml, then:
    job-bot search -q "developer" -l "Remote"
@@ -84,7 +82,7 @@ job-bot parse my_resume.pdf
 Copy `config/example_config.yaml` to `config.yaml` and edit:
 
 ```yaml
-cv_path: "my_resume.pdf"        # Path to your resume (PDF/DOCX/TXT)
+cv_path: "resumes/my_resume.pdf" # Path to your resume (PDF/DOCX/TXT)
 headless: false                  # Set true for cloud/server environments
 max_applications: 10             # Limit per platform per run
 
